@@ -1,0 +1,9 @@
+wait 5000
+type DSKINIT
+wait 300
+key enter down
+wait 60
+key enter up
+wait 1500
+wait 60000
+wait 2000

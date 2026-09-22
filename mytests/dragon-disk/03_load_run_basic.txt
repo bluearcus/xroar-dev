@@ -1,0 +1,14 @@
+wait 5000
+type LOAD"HELLO.BAS"
+wait 300
+key enter down
+wait 60
+key enter up
+wait 1500
+type RUN
+wait 300
+key enter down
+wait 60
+key enter up
+wait 1500
+wait 6000

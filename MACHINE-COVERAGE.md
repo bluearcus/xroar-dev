@@ -160,3 +160,24 @@ lines above are evidence and which are reading.
   and the same trap on a **coco3** printed that frame plus its ROM caller.
 - `-load-ram` placed the probe by physical address on both machines; a
   `format=` omission was refused loudly rather than loaded wrong.
+
+## What the 2026-09-22 Dragon 32 session actually ran
+
+Executed against `bin/xroar-dev`, headless, with a real Dragon 32 ROM
+(`d32.rom`, CRC32 `0xe3879310`, "Dragon 32 BASIC (1982)") in
+`~/.xroar/roms/` -- the first time this machine's tape path has been
+exercised end to end:
+
+- Boot, `-input-script` typing (a program entered and echoed correctly),
+  `-tape-write FILE` + guest `CSAVE` produced a sound 588-byte CAS
+  (leader, filename block, tokenized data, end block, `[CUE]`); and
+  `-load-tape FILE` + guest `CLOAD"HELLO"` loaded it back -- screen showed
+  the ROM's `F"HELLO"` + `OK` -- and `RUN` filled the screen with the
+  expected output. **Dragon 32 tape read/write: executed, works.**
+- `-trap-ram` with `-trap-range N-N` dumped at defined instants; decoding
+  the text screen from `$0400` (32x16) is a reliable headless "what is BASIC
+  showing" probe, no screenshot required.
+- The one trap found by the session was host-side, not machine-side: an
+  input-script `\r` written as a literal CR byte is chopped by the script
+  parser (`src/joystick_script.c`, see AGENT-NOTES.md). The Dragon's own
+  cassette path behaved correctly throughout.

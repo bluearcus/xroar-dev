@@ -135,14 +135,35 @@ text layout. f9dasm is fine as an interactive listing generator; it is the
 wrong substrate to build tooling on.
 
 **Say what you did not verify.** If you could not run the thing, say so plainly
-rather than implying a test happened. This matters more than usual with an
-emulator, because "it built" and "it works" are very far apart.
+  rather than implying a test happened. This matters more than usual with an
+  emulator, because "it built" and "it works" are very far apart.
+
+**Diagnosed a structural problem? Write it down that same session.** The
+docs are the only record that survives; a finding that is not in
+`AGENT-NOTES.md` (or the doc it belongs to) by the time the session ends
+will cost the next session the entire investigation again. Updating the
+docs is part of fixing the bug, not a cleanup chore, and it is what the
+`\r` rule below is: a session ended with a 0-byte CAS file, the answer was
+the script parser's line tokenisation, not the tape machinery -- and the
+whole story now lives here instead of in a chat log nobody re-reads.
 
 ## Shell traps
 
 - **`/bin/sh` may be dash.** No `$'...'` quoting, no `<(...)`, no brace
-  expansion, no `shopt`. Wrap anything non-trivial in `bash -c '...'`. The
-  input-script recipes use `$'\r'`, which dash silently mangles.
+  expansion, no `shopt`. Wrap anything non-trivial in `bash -c '...'`.
+- **An input-script `\r` is two characters, backslash then `r`.** The script
+  parser tokenises each line with `strtok(NULL, "\r\n")`
+  (`src/joystick_script.c`), so a *literal* CR byte (a `$'\r'` or
+  `printf '...\r'` in a generator) terminates the `type` text and the ENTER
+  keypress never happens: the line is typed, echoed on screen, and sits
+  un-entered forever, and nothing you watch explains why -- it reads exactly
+  like "the machine is not accepting input". Write `\r` as backslash-`r` in
+  the recipe file and let `ak_parse_type_string()` do the converting. This
+  cost a whole "CSAVE wrote a 0-byte CAS" investigation: the tape machinery
+  (`-tape-write`, PLAYING, MOTOR ON/OFF) was fine all along and the guest
+  simply never executed the command because ENTER never fired. Recognise it
+  by the screen: typed line echoed, no `OK` re-prompt, and no following
+  command ever runs.
 - **`command -v` lies under WSL.** `/mnt/c/...` is on `PATH`, so Windows `.exe`
   files answer probes for Linux tools. Reject any answer under `/mnt/`.
 - **Background processes may not survive between tool calls.** If you launch
@@ -161,6 +182,90 @@ record of why something is the way it is.
 
 Then: series applies from a pristine tarball, `-Werror` build passes,
 acceptance lines all present.
+
+## Sources
+
+What the fork's claims stand on, by machine family. The rule: a behaviour
+we assert because a patch changes it should resolve to one of these, and an
+agent asked "is this right?" should be able to get here and go read the
+thing itself. This list exists because a DragonDOS session burned an hour
+reverse-engineering DSKINIT before someone said "read the manual" -- the
+manual was free and public the whole time.
+
+### Tandy / CoCo side
+
+- Tandy CoCo 3 Tech Reference -- the GIME, MMU, and the DAT registers
+  `qxroar.block`/`task` and the physical-addressing patches (8, 27, 38)
+  lean on.
+- The Unravelled series (CoCo ROM disassemblies) -- ground truth for the
+  RSDOS/DECB and BASIC ROM paths.
+- RS-DOS / Disk Extended Color BASIC manuals -- the floppy and FDC work
+  (patches 10, 11) and `decb.py`'s disk formats.
+- MAME's CoCo and GIME-related sources where the fork's tables derive
+  (`joy_rat_table[]` is one); MACHINE-COVERAGE says so when it does.
+
+### Dragon side
+
+- **Dragon Data, "An Introduction to Dragon DOS" (A. Mayer, 1983)** -- the
+  DOS's own manual, and the authority on `SAVE`/`LOAD` file-type semantics
+  (`.BAS` vs `.BIN` vs `.DAT`, the S,E,X post-parameters, end-exclusive end
+  address, drive prefixes, backup-to-`.BAK`). Verifiable against the 6809
+  here end to end.
+- **Smeed & Somerville, "Inside the Dragon" (Sigma, 1984)** -- the machine's
+  internals.
+- prime6809/DragonDOS and prime6809/DragonRom -- assembleable, commented
+  disassemblies of DragonDOS 1.0/1.2 and the Dragon 32/64 BASIC ROMs;
+  `bin/lwasm` reproduces ddos10.rom byte-identically (CRC 0xb44536f6).
+- Graham's Dragon Page (dragon32.info) -- the classic collection of Dragon
+  info files, referencing the Dragon 32 manual, Dragon 64 annex and
+  DragonDOS handbook (`dragon.zip`).
+- CASA "Starting Dragon" (solutionarchive.com) -- usage conventions; note it
+  blocks non-browser clients (WAF), so fetch it via a cache if at all.
+
+### Shared (both families)
+
+- **Motorola MC6883 / SN74LS783 SAM datasheet** -- both the Dragon and the
+  CoCo hang all address decoding off the SAM, so anything touching the
+  memory maps of either (or `-gdb-pseudo-regs` SAM registers) starts
+  here, once.
+- **Dragon <-> Tandy CoCo compatibility notes** -- the two are cousins
+  (same SAM/6809/VDG/PIA family, different ROMs and wiring), and the
+  differences that matter for emulation work deserve their own note here
+  rather than being re-derived per session. Known dimensions to cover:
+  - **BASIC token differences** -- the Dragon 32/64 and CoCo token tables
+    differ, so a tokenized file or a `POKE`-driven assumption from one family
+    does not transfer to the other; gensym's lwasm side is house-independent,
+    but BASIC is not. Concrete: **Dragon 32 Extended Color BASIC (one
+    monolithic 16K ROM) has no `MOD`** operator (the manual documents none,
+    and `A MOD B` parses but prints the operands and 0); synthesize it,
+    `A-INT(A/B)*B`, which the ROM evaluates correctly. Also `HIMEM`,
+    printer and disk tokens differ. Family-wide Microsoft BASIC behaviour
+    (MOD included) lives in BASIC-NOTES.md, not here.
+
+  - **Keyboard matrix** -- the Dragon and CoCo matrices are genuinely
+    different layouts (Dragon's 53-key matrix vs CoCo's), so anything
+    scanning the matrix raw (`-input-script key`, GetModifierKeys) sees
+    different physical positions.
+  - **Ports** -- PIA wiring differs: cassette out (PIA1-A via the DAC on
+    both, but the Dragon adds the tape output through the same filter),
+    serial (bit-banger on the CoCo family, different hardware on the
+    Dragon -- patch 28 warns instead of silently arming), printer
+    strobe/BUSY lines, and joystick/right-left port occupancy.
+  - **Monolithic vs add-on ROMs** -- the CoCo 3's 32K BASIC is one
+    monolithic ROM (`coco3.rom`). The CoCo 1/2 spread the same function over
+    two 8K chips, Color BASIC plus Extended Color BASIC as an add-on chip
+    (`bas13.rom` + `extbas11.rom`); **the Dragon 32/64's BASIC is itself
+    monolithic -- the whole Extended Color BASIC set in a single 16K ROM**
+    (`d32.rom`/`d64.rom`). Disk BASIC is a cartridge add-on on both
+    (`disk11.rom`), and the Dragon's DOSes are cartridge ROMs too
+    (`dragondos`, `delta`), which is why `-machine` wiring differs between
+    the families.
+  - **Disk system differences** -- RSDOS/DECB (CoCo, tracks 0-34 directory
+    layout, `-load-fdX` + disk11.rom) vs DragonDOS/DeltaDOS (Dragon,
+    different directory track format, `-cart dragondos|delta`, `SAVE`/`LOAD`
+    file-type-by-extension semantics); `decb.py` makes RSDOS images and
+    nothing here builds DragonDOS ones yet.
+
 
 ## What this fork is not
 

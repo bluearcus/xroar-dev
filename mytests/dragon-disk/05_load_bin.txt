@@ -1,0 +1,8 @@
+wait 5000
+type LOAD"TEST.BIN"
+wait 300
+key enter down
+wait 60
+key enter up
+wait 1500
+wait 6000

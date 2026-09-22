@@ -1,0 +1,5 @@
+wait 3000
+type CLOAD"HELLO"\r
+wait 5000
+type RUN\r
+wait 15000

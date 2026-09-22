@@ -1,0 +1,6 @@
+wait 3000
+type 10 REM HELLO WORLD - LOADED FROM CASSETTE\r
+type 20 PRINT "HELLO, WORLD!"\r
+type 30 GOTO 20\r
+type CSAVE"HELLO"\r
+wait 8000

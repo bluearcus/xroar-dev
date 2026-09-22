@@ -239,8 +239,11 @@ bin/xroar-dev -machine coco3 -load-fd0 test.dsk \
     -timeout 120
 ```
 
-`run.txt` is plain text: `wait`, `type`, `move`, `down`, `up`, `key`. The
-`-init-delay` matters more than it looks: a headless run is otherwise
+`run.txt` is plain text: `wait`, `type`, `move`, `down`, `up`, `key`. A `type`
+line ends with `\r` as **two characters** (backslash then `r`), not a literal
+CR byte: the script parser splits lines on `\r\n`, so a real CR silently
+drops the ENTER and the line never executes (AGENT-NOTES.md has the full
+story). The `-init-delay` matters more than it looks: a headless run is otherwise
 *perfectly* repeatable, so a program that seeds anything from a timer at first
 input gets the same value every single time. Add `-init-delay-random` to put the
 variation back; the delay it draws is logged, so a run that finds something can
@@ -314,9 +317,11 @@ variables configure them for yours. See `tools/README.md`.
 | `BUILD.md` | Build instructions, all platforms |
 | `PATCHES.md` | Every patch, what it does, and what it buys an agent |
 | `CHANGELOG.md` | The shape of the history, high level |
+| `mytests/` | A working Dragon 32 cassette example (BASIC source, input scripts, CAS file) and the commands that made it |
 | `MACHINE-COVERAGE.md` | Which machines each feature works on, and what is coco3-only on purpose |
 | `AGENT-NOTES.md` | Rules and traps, written for whoever automates this next |
 | `6809-NOTES.md` | 6809/6309 and lwasm traps: the things the datasheet states plainly and everyone gets wrong anyway |
+| `BASIC-NOTES.md` | Microsoft 6809 BASIC (Dragon & CoCo): architecture, implementation quirks and bugs, with a verified/asserted ledger |
 | `COPYING` | GPL-3.0, for XRoar itself |
 | `LICENSE.MIT` | MIT, for the patch series |
 

@@ -1,0 +1,14 @@
+wait 5000
+type FOR A=28672 TO 28719: POKE A,A-28672: NEXT
+wait 300
+key enter down
+wait 60
+key enter up
+wait 1500
+type SAVE"TEST.BIN",28672,28719,28672
+wait 300
+key enter down
+wait 60
+key enter up
+wait 1500
+wait 6000
