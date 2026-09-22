@@ -322,6 +322,7 @@ variables configure them for yours. See `tools/README.md`.
 | `AGENT-NOTES.md` | Rules and traps, written for whoever automates this next |
 | `6809-NOTES.md` | 6809/6309 and lwasm traps: the things the datasheet states plainly and everyone gets wrong anyway |
 | `BASIC-NOTES.md` | Microsoft 6809 BASIC (Dragon & CoCo): architecture, implementation quirks and bugs, with a verified/asserted ledger |
+| `FORMATS-NOTES.md` | The media formats the emulator moves: CAS, DragonDOS and RSDOS/JVC disks, with a verified-by-construction ledger |
 | `COPYING` | GPL-3.0, for XRoar itself |
 | `LICENSE.MIT` | MIT, for the patch series |
 
