@@ -1,0 +1,24 @@
+diff --git a/common/DiskImages/RawDiskImage.cpp b/common/DiskImages/RawDiskImage.cpp
+index f3ebef5..57529c1 100644
+--- a/common/DiskImages/RawDiskImage.cpp
++++ b/common/DiskImages/RawDiskImage.cpp
+@@ -47,6 +47,19 @@ bool CRAWDiskImage::Load(const std::string& _filename)
+ 
+ 	mDataSize = uFileSize;
+ 
++	// (fork patch) a raw image has no header: infer geometry from size.
++	// DragonDOS disks are 256-byte sectors, 18 per track; a single-sided
++	// 40-track disk is 184,320 bytes (40x18x256), double-sided 360K is
++	// 368,640, 80-track double-sided 720K is 737,280.
++	mSectorSize = 256;
++	mSectorsNum = 18;
++	mSidesNum   = ( uFileSize % ( 80 * 18 * 256 ) == 0 && uFileSize == 80 * 18 * 256 * 2 ) ? 2 : 1;
++	mTracksNum  = mDataSize / ( mSidesNum * mSectorsNum * mSectorSize );
++	if( mDataSize % ( mSidesNum * mSectorsNum * mSectorSize ) != 0 )
++	{
++		return false;
++	}
++
+ 	return true;
+ }
+ 

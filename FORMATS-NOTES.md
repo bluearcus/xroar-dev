@@ -31,28 +31,53 @@ single-sided = 184,320 bytes (V: `[vdisk/jvc] ... 40C 1H 18S`). DSKINIT
 fills the surface with `0xE5` sector data (V).
 
 Directory track format, from Dragon Data's DOS 2.C "Additional Info"
-(prime6809/DragonDOS `doc/Additional Info.txt`) (R):
+(prime6809/DragonDOS `doc/Additional Info.txt`) and the Kinns/Dragon
+Data spec (dragon32.info `info/drgndos.txt`) (R); every byte-claim
+below also checked on both a ROM-written image and a tool-written one (V):
 
-- Sector 1 of the directory track: bytes 0-179 = free-block bitmap
-  (bit = 1 -> sector free); byte `$FC` = number of tracks; `$FD` =
-  sectors per side; `$FE`/`$FF` = their complements.
-- FIB (normal) entry: flags byte; 8-char name + 3-char extension, space
-  padded; four extent records (16-bit LSN + sector count, 3 bytes each);
-  byte `$18` = bytes used in last sector, or link to the next extent
-  block when `more extents` is set.
-- Extent-block variant: extents at offset 11, `7*3` bytes; bytes `$16$17`
-  unused.
-- LSN decodes as `track = LSN DIV sectors-per-track`,
-  `sector = LSN MOD sectors-per-track`; directory and alternate
-  directory tracks are not counted into the LSN.
-- Flags byte: bit 0 sector-unit (0 = filename, 1 = extension), bit 1
-  protected, bit 3 end-of-dir, bit 5 more extents, bit 7 deleted ("not
-  valid"); only bits 1 and 7 are meaningful in a FIB.
+- Directory track is **track 20, sectors 3-18** carry the directory;
+  sectors 1-2 the free-block bitmap + geometry bytes `$FC/$FD` (tracks,
+  sectors-per-track, `$FE/$FF` complements). Bit = 1 -> free.
+  `LSN 0 = track 0, sector 1`, LSN = T*18+(S-1). The directory track is
+  marked used in the bitmap, not skipped in the numbering.
+- FIB: flags byte; **name 8 chars + extension 3 chars, NUL-padded**
+  (not space-padded); four sector-allocation blocks of
+  `[LSN 16-bit][count]`; byte `$18` = bytes used in the last sector
+  (`0x00` means 256) or, with bit 5 set, the next entry number.
+- **SAB LSNs are big-endian** (6809 `STD` order): the ROM wrote
+  `01 44` = 0x0144 = 324 for its TEST.BIN; retrotools wrote `00 08` = 8.
+  Little-endian reading of either image gives nonsense (2048 etc.).
+- Flags byte: bit 0 = 0 filename-this-block, 1 = continuation block;
+  bit 1 protected; bit 3 end-of-dir; bit 5 more extents; bit 7 deleted.
+  DSKINIT's empty entries: `0x89` (deleted+end+continuation).
 
-Host tooling status: nothing here creates DragonDOS images yet;
-`decb.py` is RSDOS-only (see below). The practical route is
-`-cart dragondos` + typed `DSKINIT`/`SAVE`/`LOAD`, which is the
-`mytests/dragon-disk/` workflow.
+### The 9-byte file header, and directory byte accounting
+
+Every file on disk starts with `55 | filetype | load(2) | len(2) | exec(2) |
+AA`, then the payload (R, ddos12.asm `HdrLoad/HdrLen/HdrExec`; V on both
+images). Header fields are `.BIN` semantics really: `type 02`, load = S,
+`len = end - start` (end-exclusive), exec = X. For `.BAS` (type 01) they
+are placeholders -- load "typically $2401", exec = the FC-error routine
+($8B8D class) -- which is why the header lives in FORMATS notes but means
+something only for .BIN files.
+
+**The byte count includes the header.** The write path keeps the whole-file
+length (9-byte header + payload) and copies its LSB into FIB `$18`
+(ddos12.asm: `FCBFileLen` accumulation, `STB DirEntLastBytes,U`); the DOS's
+DIR shows `(sectors-1)*256 + DirEntLastBytes`. Measured: HELLO.BAS files of
+75 payload bytes get `$18 = 84` = 9+75, and DIR prints 84; a 47-byte .BIN
+gets `$18 = 56`, DIR prints 56. retrotools' `list` disagrees per type
+(.BAS payload-only, .BIN/.DAT with header) -- the tool's quirk, not the
+DOS's.
+
+### Host tooling
+
+`tools/dragondos/` (fetch.sh -> `bin/dragondos`) creates, formats, lists
+and populates DragonDOS images directly -- `new`/`insertbasic`/
+`insertbinary`/`insertdata`/`list`/`info`/`extract`/`delete`. Verified
+both ways: it reads the ROM-written `dragon.dsk` and the emulator ran
+its images (DIR, LOAD+RUN, PEEK checks). `decb.py` remains RSDOS-only;
+do not cross-feed images (see below).
 
 ## RSDOS / DECB (CoCo disks)
 

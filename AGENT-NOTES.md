@@ -216,9 +216,15 @@ manual was free and public the whole time.
 - prime6809/DragonDOS and prime6809/DragonRom -- assembleable, commented
   disassemblies of DragonDOS 1.0/1.2 and the Dragon 32/64 BASIC ROMs;
   `bin/lwasm` reproduces ddos10.rom byte-identically (CRC 0xb44536f6).
+  The DOS listing (`ddos12.asm`) is the ground truth for what SAVE/DIR
+  actually write and display (file header fields, FIB `$18` accounting).
 - Graham's Dragon Page (dragon32.info) -- the classic collection of Dragon
   info files, referencing the Dragon 32 manual, Dragon 64 annex and
-  DragonDOS handbook (`dragon.zip`).
+  DragonDOS handbook (`dragon.zip`); `info/drgndos.txt` (Kinns) is the
+  canonical disk/directory-format spec.
+- robcfg/retrotools `dragondos` -- host-side DragonDOS image tool;
+  `tools/dragondos/` pins it, patches it, and documents what got
+  verified against the machine.
 - CASA "Starting Dragon" (solutionarchive.com) -- usage conventions; note it
   blocks non-browser clients (WAF), so fetch it via a cache if at all.
 

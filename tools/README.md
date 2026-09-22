@@ -1,8 +1,9 @@
 # Host-side tools
 
-Five Python tools, no dependencies beyond the standard library. They are the
-host half of features the patch series adds to the emulator. The emulator can
-consume a symbol file, but something has to *write* one.
+Python tools with no dependencies beyond the standard library, plus one
+C++ CLI built by a pinned-source script. They are the host half of features
+the patch series adds to the emulator. The emulator can consume a symbol
+file, but something has to *write* one.
 
 | Tool | Pairs with | What it does |
 |---|---|---|
@@ -10,6 +11,7 @@ consume a symbol file, but something has to *write* one.
 | `symread.py` | n/a | Reads that pair from Python: name → physical address, and back |
 | `auditreport.py` | patch 37 (`-audit`) | Turns the binary access-audit map into a readable coverage report |
 | `decb.py` | n/a | Creates and manipulates RS-DOS (Disk BASIC) disk images |
+| `dragondos/` | n/a | DragonDOS counterpart to `decb.py`: create/format/list/populate DragonDOS disk images (build: `dragondos/fetch.sh` → `bin/dragondos`) |
 | `gen_mnemonics.py` | `gensym.py` | Regenerates gensym's instruction/directive sets from the vendored `lwasm`'s own table |
 
 ## Configuring them for your project
@@ -114,6 +116,21 @@ mean different things.
 Creates and manipulates RS-DOS disk images. Needed because getting a program
 onto a virtual floppy is otherwise a manual step, and an automated run cannot
 have manual steps. `--help` lists the full command set.
+
+## dragondos/: DragonDOS disk images
+
+    tools/dragondos/fetch.sh            # -> bin/dragondos (pinned upstream + 2 patches)
+    bin/dragondos new disk.dsk 180 3    # 180K raw image; index 3 = raw (0 VDK, 1 JVC, 2 IMD)
+    bin/dragondos insertbasic disk.dsk prog.bas    # host-side tokenization
+    bin/dragondos insertbinary disk.dsk blob.bin 28672 0x7000
+    bin/dragondos insertdata disk.dsk notes.dat
+    bin/dragondos list disk.dsk
+
+The DragonDOS counterpart to `decb.py` (and the only way to feed Dragon
+images with .BAS/.BIN/.DAT types outside the emulator). See
+`dragondos/README.md` for the full command set, the verification that
+binds it to this repo (reader ↔ ROM-written media, writer → emulator),
+and two known upstream bugs.
 
 ## A note on provenance
 
