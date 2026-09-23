@@ -97,7 +97,6 @@ there has effectively been removed, and the reasonable response to not finding
 it is to go debug the build.
 
 ### 3. Suspect the harness before the emulator
-
 A scripted run has far more ways to be wired wrong than the emulator has to be
 broken. Before concluding you have found an emulator bug:
 
@@ -109,7 +108,37 @@ broken. Before concluding you have found an emulator bug:
   program was blamed for changing a colour it never touched.)
 - Is the feature actually compiled in? Check the acceptance lines.
 
-## Working style that pays here
+## Launching the emulator: the log is the diagnostic
+
+Learned the hard way on the CoCo 3/DECB session: the screen is a poor
+first witness, the log is the good one. Run every headless invocation
+with stderr visible -- never `>/dev/null 2>&1` while finding your feet.
+
+- **The startup log tells you what actually loaded.** `[part:coco3]` +
+  `Slot 0: CRC32 ... FILE coco3.rom` proves the machine ROMs; a
+  `[part:rsdos]` + `[cart:rom] ... FILE disk11.rom` pair proves the
+  cartridge attached (a missing cart prints neither). Grep the log for
+  `error|fail|warn|cart` before scripting any input.
+- **A blocky pattern/checkerboard screen with no text = no machine ROM
+  found** (the general rule). On the CoCo 3 it is also just *the boot
+  screen* -- so if the log shows the ROMs, the checkerboard is benign
+  and means "machine is up, in graphics mode", not "broken".
+  Distinguish by the log, not the pixels.
+- **The Dragon/CoCo rule "the text screen is RAM at $0400" does not
+  transfer to the CoCo 3.** Its text lives in banked graphics RAM, so
+  `-trap-ram` dumps of $0400 show noise. For the CoCo 3, prove state
+  with `-trap-screenshot` (PNG -- readable, and the fork's own notes
+  treat the screen as data), with disk-image bytes after writes, and
+  with the log.
+- **Boot pacing: nothing typed until the DOS is demonstrably up.**
+  Characters typed in the boot gap vanish into a dead buffer -- the
+  first DECB attempt typed `DSKINI` into nothing and the disk came back
+  pristine. Give the machine its boot time (`-timeout` longer than the
+  script, or a `wait`), watch for the banner, then type.
+- Cartridges on the CoCo 3: `-cart TYPE`/`-cart-rom FILE` attach
+  directly (no MPI needed on a bare machine); `-cart-type help` lists
+  the types (`rsdos`, `dragondos`, ...). A `[cart:rom]` line with a
+  sane CRC is your confirmation.
 
 **Measure before optimising, and write the number down.** "It feels slow" and
 "it copies 18,886 bytes per frame, 33ms, a 30fps ceiling" lead to different and
