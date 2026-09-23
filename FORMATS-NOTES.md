@@ -31,9 +31,13 @@ single-sided = 184,320 bytes (V: `[vdisk/jvc] ... 40C 1H 18S`). DSKINIT
 fills the surface with `0xE5` sector data (V).
 
 Directory track format, from Dragon Data's DOS 2.C "Additional Info"
-(prime6809/DragonDOS `doc/Additional Info.txt`) and the Kinns/Dragon
-Data spec (dragon32.info `info/drgndos.txt`) (R); every byte-claim
-below also checked on both a ROM-written image and a tool-written one (V):
+(prime6809/DragonDOS `doc/Additional Info.txt`), the Kinns/Dragon Data
+spec (dragon32.info `info/drgndos.txt`), and the official user manual
+"An Introduction to Dragon DOS" (Mayer 1983; dragondata.co.uk PDF;
+text layer extracted at /tmp/intro.txt) -- the manual is the source for
+the DSKINIT/SAVE/LOAD command semantics rather than the byte layout (R).
+Every byte-claim below is also checked on both a ROM-written image and a
+tool-written one (V):
 
 - Directory track is **track 20, sectors 3-18** carry the directory;
   sectors 1-2 the free-block bitmap + geometry bytes `$FC/$FD` (tracks,
@@ -117,6 +121,41 @@ ToolShed/MAME imgtool (R), and spot-verified on a fresh image (V):
   LSN 2. RSDOS tokens differ from Dragon's (DIR is `0xCE` on both; SAVE
   `0xD8`, LOAD `0xD3`, DSKINI `0xDC` here; see AGENT-NOTES token
   bullet).
+Sources: Kinns tandydsk.txt (dragon32.info; itself Eric Hall's Dragon
+User May-1988 + NDUG) and Tandy's official "Color Computer Disk
+System" manual (colorcomputerarchive scan -- image-only, so treat it
+as an index and let the ROM be the judge on details).
+
+ROM-written facts, verified on a live DECB 1.1 (coco3 + disk11.rom,
+all V):
+
+- **`DSKINI` bare raises `?DN ERROR`; `DSKINI0` works.** The stock ROM
+  wants the drive number in the command. (XRoar mounts the image as
+  drive 0 regardless.)
+- DSKINI formats the whole disk to `0xFF` fill (630/630 sectors on a
+  35-track image), GAT and directory tract included -- matching
+  decb.py's fresh-disk convention.
+- **Terminator encoding** (the question tandydsk's "bits 3-0" and
+  decb.py's `& 0x3F` disagree on): a 3457-byte SAVEM writes GAT
+  granule 32 = `0x21` (chain link) and granule 33 = `0xC5` =
+  `0xC0 + 5` sectors in the last granule. Low-bit masks agree for any
+  legal 1-9 count; the field is sectors-in-last-GRANULE.
+- **Allocation order**: the first file takes granules 32+33 -- the
+  pair nearest the directory track (track 17) -- confirming decb.py's
+  note that real DECB allocates nearest-the-directory first (its
+  first-free-ascending is the deliberate divergence).
+- Entry bytes for the save: `"ML2     " "BIN" 02 00 20 00 8b` = name,
+  ext (0x20-padded), type 2 (ML), ascii flag 0x00 (binary), first
+  granule 0x20, last-sector byte count 0x008b. That count = whole
+  **file size mod 256** (3467 = 5-byte ML header + 3457 data + 5-byte
+  tail, mod 256 = 139) -- header/tail included, like DragonDOS's FIB
+  0x18. A multiple of 256 stores as 0 (decb.py treats 0 as full).
+- ML payload confirmed byte-exact vs tandydsk: `00 | len(2,BE) |
+  load(2,BE) | data | FF | 0000 | exec(2,BE)`; the machine's DIR line
+  for it reads `ML2 BIN 2 B 2` -- name, ext, 2 granules, binary, and a
+  trailing field left as display sugar (not pinned down).
+- **`SAVEM`'s end address is inclusive**: 24576..28032 saved 3457
+  bytes (28032-24576+1), visible in the header length field.
 
 Spot-verified (V) with `decb.py dskini` + `copy` on a 256-byte binary:
 GAT byte 0 = `0xC1` (chain terminator, 1 sector in granule 0), and the
