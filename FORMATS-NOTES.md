@@ -123,8 +123,16 @@ ToolShed/MAME imgtool (R), and spot-verified on a fresh image (V):
   bullet).
 Sources: Kinns tandydsk.txt (dragon32.info; itself Eric Hall's Dragon
 User May-1988 + NDUG) and Tandy's official "Color Computer Disk
-System" manual (colorcomputerarchive scan -- image-only, so treat it
-as an index and let the ROM be the judge on details).
+System" manual. The archive scan is image-only, but an OCR text
+layer now lives at /home/mike/"Color Computer Disk System (Tandy) -
+with text.pdf" (extract at /tmp/decbman.txt), so it is quotable:
+Appendix G defines `?DN ERROR` as a Drive Number error -- "drive
+number higher than 3", or *"if you do not specify a drive number
+when using DSKINI or BACKUP"* ("specify drive 0... DSKINI0 or
+BACKUP 0"); DSKINI takes "about 40 seconds" of rotor noise then
+prints OK; SAVEM/LOADM favour &H hex in the examples but decimal
+addresses parse fine (V); DIR auto-assigns BAS/DAT/BIN extensions
+and `DIR1` reads drive 1.
 
 ROM-written facts, verified on a live DECB 1.1 (coco3 + disk11.rom,
 all V):
@@ -151,9 +159,10 @@ all V):
   tail, mod 256 = 139) -- header/tail included, like DragonDOS's FIB
   0x18. A multiple of 256 stores as 0 (decb.py treats 0 as full).
 - ML payload confirmed byte-exact vs tandydsk: `00 | len(2,BE) |
-  load(2,BE) | data | FF | 0000 | exec(2,BE)`; the machine's DIR line
-  for it reads `ML2 BIN 2 B 2` -- name, ext, 2 granules, binary, and a
-  trailing field left as display sugar (not pinned down).
+  load(2,BE) | data | FF | 0000 | exec(2,BE)`.
+- DIR line `ML2 BIN 2 B 2` = name, ext, **type** (2 = machine-
+  language data), **format** (B = binary), **granules** (2) -- the
+  manual's column order, matching GAT granules 32+33.
 - **`SAVEM`'s end address is inclusive**: 24576..28032 saved 3457
   bytes (28032-24576+1), visible in the header length field.
 
