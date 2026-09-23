@@ -88,11 +88,50 @@ must not be fed to RSDOS tooling and vice versa.
 
 ## Raw vs JVC disk images
 
-`.dsk` raw image = bare sectors, size implies geometry. JVC adds a
-3-byte per-sector header carrying the marker and addresses, and is what
-older amusements encode; `-load-fdX` auto-detects (R, XRoar `vdisk/jvc`).
-Nothing about the fork requires knowing the difference by hand.
+`.dsk` raw image = bare sectors, size implies geometry. JVC (Jeff
+Vavasour CoCo disk image) is raw sectors plus a short *geometry header*
+-- not per-sector markers (that was wrong in earlier drafts). The spec
+(R, Tim Lindner's page, tlindner.macmess.org/?page_id=86):
 
+- header length = `fileLength % 256`, so 0..255 bytes; contents:
+  sectors-per-track (default 18), side count (1), sector-size code
+  (`0x00`=128 `0x01`=256 `0x02`=512 `0x03`=1024), first sector ID (1),
+  sector-attribute flag (0). Missing/too-short => defaults.
+- tracks = (fileLength-header)/spt/(128<<code)/sides; two sides are
+  interleaved per track (T0S1, T0S2, T1S1, ...).
+- If the attribute flag is set, each sector gains one prepended byte
+  (the WD179x Read-Sector status: deleted-data bit, not-found, CRC).
+- Vavasour's CoCo3 emulator reads headers up to 255 bytes; his CoCo2
+  emulator only length 0.
+
+- `-load-fdX` routes by filename (R, xroar.c): `.vdk` -> VDK loader,
+  `.jvc` **and `.dsk`** -> the JVC loader, `.os9`/`.dmk` their own. So a
+  `.dsk` is JVC-loader territory: with a size that is a multiple of 256
+  it is raw; otherwise it carries the optional variable-length geometry
+  header above. XRoar's own `.dsk` writer emits the header only when
+  needed, keeping images payload-compatible (R, `vdisk.c`).
+
+## VDK (Dragon virtual disk)
+
+Magic `dk` at 0; the *declared total* header length at bytes`[2..3]`
+little-endian, so lengths vary by file: a short VDK is exactly the
+12-byte core, and 256-byte headers (core + name/extra block) are common
+in the wild (R, PC-Dragon II spec as carried in XRoar's `vdisk.c`):
+
+- `[0..1]` `dk`; `[2..3]` header length (LE, >= 12); `[4]` VDK version;
+  `[5]` backwards-compat version; `[6]` source identity (`P` PC-Dragon,
+  `X` XRoar); `[7]` source version; `[8]` cylinders; `[9]` heads;
+  `[10]` flags (bit 0 = write-protect); `[11]` compression (bits 0-2),
+  disk-name length (bits 3-7). Sectors follow the header.
+- XRoar rejects compressed VDKs and a VDK version above 0x10; it stores
+  and rewrites all extra header bytes verbatim.
+
+Verified here (V): retrotools `dragondos new t.vdk 180` writes
+`64 6b 0c 00 10 10 50 26 28 01 00 00` = `dk`, length 12, version 0x10,
+source `P`, 40 cyls, 1 head, no protection, no name -- 184,332 bytes =
+184,320 + the 12-byte short header. A raw .dsk of the same contents
+differs from it only by that header; the payload after the header is
+the same sector run.
 ## Not covered yet
 
 `.sym`/`.lines` (gensym format 1 and 2 -- tools/README.md), snapshots
