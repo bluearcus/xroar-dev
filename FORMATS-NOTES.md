@@ -82,12 +82,52 @@ both ways: it reads the ROM-written `dragon.dsk` and the emulator ran
 its images (DIR, LOAD+RUN, PEEK checks). `decb.py` remains RSDOS-only;
 do not cross-feed images (see below).
 
-## RSDOS / DECB (CoCo disks)
+## RSDOS / DECB (Tandy CoCo disks)
 
-Directory and filing conventions differ from DragonDOS (R, `decb.py` +
-XRoar's RSDOS support; not re-derived here). `decb.py` maintains these
-images (`dir` / `copy` / `kill`; see tools/README.md). A DragonDOS image
-must not be fed to RSDOS tooling and vice versa.
+Layout per the canonical Kinns spec (dragon32.info `info/tandydsk.txt`,
+which credits Eric Hall's Dragon User May-1988 article and the NDUG
+notebook) (R), cross-implementer checked against `decb.py` here and
+ToolShed/MAME imgtool (R), and spot-verified on a fresh image (V):
+
+- Geometry: 35 tracks (0-34), 1 side, 18 sectors of 256 bytes;
+  `decb.py dskini -3/-4/-8` covers 35/40/80 tracks.
+- Granule = 9 sectors (2304 bytes), the allocation unit. Granule
+  numbering is zero-based and **skips the directory track**: granule 0 =
+  track 0 sectors 1-9; granule 33 = track 16 s10-18; granule 34 = track
+  18 s1-9. 35T disks have 68 granules (70 minus the track 17 pair).
+- Directory on track 17; **sector 2 = granule map (GAT)**, sectors 3-11
+  = 72 directory entries of 32 bytes (8 per sector, 9 sectors).
+  Sectors 1 and 12-18 of the track are unused (the spec presumes;
+  `dskini`/imgtool leave their 0xFF fill, ToolShed zeroes some).
+- GAT byte per granule: `0x00-0x43` = next granule in the chain;
+  `0xC0+` = last granule, low bits = sectors used in the last granule
+  (spec says bits 3-0; `decb.py` masks `0x3F`); `0xFF` = free. Other
+  values = corrupt or a stray fill.
+- Directory entry (32 bytes): `[0:8]` name, `[8:11]` extension, both
+  space padded; `[11]` type: 0 = Basic, 1 = Basic data, 2 = machine
+  code, 3 = text; `[12]` ASCII flag (`0xFF` ASCII / `0x00` binary);
+  `[13]` first granule; `[14:15]` bytes used in last sector, big-
+  endian, `0x0100` = full sector; `[16:31]` unused. Byte 0 `0xFF`/
+  `0x00` mark a free/deleted slot (fresh disks are all 0xFF).
+- File payloads: tokenised BASIC = `0xFF`, BE length, token stream;
+  ML = header `0x00`, BE length, BE load address; tail `0xFF`, `0x0000`,
+  BE exec address; segmented files repeat the header per segment.
+- Bootable: `'OS'` on **track 34** (granule 66) and boot code near
+  granule 32 (track 16 s1) -- the *last* track, unlike DragonDOS's
+  LSN 2. RSDOS tokens differ from Dragon's (DIR is `0xCE` on both; SAVE
+  `0xD8`, LOAD `0xD3`, DSKINI `0xDC` here; see AGENT-NOTES token
+  bullet).
+
+Spot-verified (V) with `decb.py dskini` + `copy` on a 256-byte binary:
+GAT byte 0 = `0xC1` (chain terminator, 1 sector in granule 0), and the
+entry decodes `DECFILE` type 2 (ML), binary, first granule 0, last-
+sector bytes `0x0100` -- everything above lines up. `decb.py dir`/`stat`
+read the same numbers back.
+
+The fork's take: `decb.py` is the maintained reader/writer for these
+images (it also absorbs JVC headers transparently); XRoar only moves
+raw sectors -- the DECB ROM itself implements this file system at
+runtime. Do not cross-feed DECB and DragonDOS images.
 
 ## Raw vs JVC disk images
 
