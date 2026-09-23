@@ -50,6 +50,9 @@ below also checked on both a ROM-written image and a tool-written one (V):
 - Flags byte: bit 0 = 0 filename-this-block, 1 = continuation block;
   bit 1 protected; bit 3 end-of-dir; bit 5 more extents; bit 7 deleted.
   DSKINIT's empty entries: `0x89` (deleted+end+continuation).
+- Bootable disks: `'OS'` at LSN 2 (track 0, sector 3); `BOOT` then loads
+  sectors 3-18 of track 0 to `$2600` and jumps `$2602` (R, Kinns
+  spec). Not the same thing as an autostart cartridge.
 
 ### The 9-byte file header, and directory byte accounting
 
@@ -110,6 +113,11 @@ Vavasour CoCo disk image) is raw sectors plus a short *geometry header*
   it is raw; otherwise it carries the optional variable-length geometry
   header above. XRoar's own `.dsk` writer emits the header only when
   needed, keeping images payload-compatible (R, `vdisk.c`).
+- Endianness note: the spec page says `fileLength % 256`, XRoar's
+  reader computes `file_size % 128` (vdisk.c). They agree for headers
+  under 128 bytes -- headers 128..255 (legal per Vavasour's emulator)
+  are misread by XRoar. The retrotools writer's 5-byte header
+  validates both. Worth knowing before importing exotic JVCs.
 
 ## VDK (Dragon virtual disk)
 
@@ -132,9 +140,68 @@ source `P`, 40 cyls, 1 head, no protection, no name -- 184,332 bytes =
 184,320 + the 12-byte short header. A raw .dsk of the same contents
 differs from it only by that header; the payload after the header is
 the same sector run.
-## Not covered yet
+## OS-9 disk images
 
-`.sym`/`.lines` (gensym format 1 and 2 -- tools/README.md), snapshots
-(`.sna`), tape WAV, `.ccc` cartridge images. Each gets a section here
-when something needs it; write the claim with its R source, then test it
-against the machine so it can be re-tagged V.
+An OS-9 image is a **headerless, image-only .dsk** -- the same raw
+sector payload as a JVC-with-zero-header file, with no geometry header
+of any kind. The geometry is read out of LSN0's OS-9 DD map when the
+image is loaded (R, `vdisk.c do_load_jvc`): `dd_tot` (3 bytes),
+`dd_tks`, `dd_fmt` (sides = (fmt&1)+1), `dd_spt`; if
+`dd_tot*256 >= filesize && dd_tks == dd_spt > 0` the geometry is taken
+from there. A `.os9` filename forces this check even when
+auto-detection is disabled (`-no-disk-auto-os9`).
+
+## DMK (David Keil's disk format)
+
+Preserves more of the raw floppy than VDK/JVC -- this is where "real
+sector headers and deleted marks" live, not in JVC. 16-byte header (R,
+`vdisk.c`, itself from the DMK spec): `[0]` write protect (`$00`/`$FF`;
+XRoar treats `$FF` as write-back-off), `[1]` cylinders, `[2..3]` track
+length incl. IDAM table (LE, valid 0x0cc0..0x2940), `[4]` flags (bit 4
+single-sided, bit 6 single-density-only, bit 7 mixed; 6/7 ignored),
+`[5..11]` reserved, `[12..15]` must be 0 (`0x12345678` flags a real
+drive, unsupported). Each track then = a 64-entry table of 16-bit LE
+IDAM offsets (relative to track start, table included) + raw track
+data. SD/DD is per track, so both densities fit in one image.
+
+## Cartridge / ROM images
+
+`.ccc`, `.cco`, `.dgn`, `.bin`, `.rom` all map to ROM loads (R,
+xroar.c filetypes) and `cart.c` reads them as raw ROM bytes -- no
+container header is parsed. The DragonDOS cart is an 8K ROM in this
+slot; `bin/lwasm` rebuilds it byte-identically. If a community `.ccc`
+with a 257-byte container header shows up somewhere, XRoar is not the
+reader for it.
+
+## Snapshots
+
+`.sn` is XRoar's serialised state: tag `0x23` + the literal text
+header `/usr/bin/env xroar\n# 6809.org.uk\n`, then a tagged stream of
+machine/parts/vdrive regions (R, `snapshot.c`). The fork's
+`-trap-ram` dumps are a deliberately simpler, script-verifiable
+excuse for state capture; nothing here writes `.sn` yet.
+
+## Tape: CAS / C10 / K7 / WAV
+
+All four extensions reach the tape layer (R, tape.c): `.cas` is the
+form this fork uses (see the CAS section), `.c10` the CoCo's raw
+cassette, `.k7`/`.wav` other containers. The ROM is the decoder; a
+tape that CLOADs is correct.
+
+## S19 / HEX, and what XRoar *doesn't* read
+
+`lwasm` can emit `.s19`; XRoar loads S19/HEX/ihex as ROM images
+(non-tokenised, address-tagged ASCII -- not a media format worth more
+than this line). EDSK and IMD are *not* read by XRoar; the cobbled
+`dragondos` factory understands them, so use it as a converter when a
+preservation site ships those.
+
+## Fork-native formats (pointers)
+
+`gensym`'s `.sym`/`.lines` pair and the `-audit` access map are this
+fork's own files; both are specified in tools/README.md (gensym/
+symread/auditreport), not here, because they are not emulated-media
+formats. Formats that genuinely lack a section (WAV audio details, a
+community `.ccc` container) get one here when something needs it;
+write the claim with its R source, then test it against the machine so
+it can be re-tagged V.
