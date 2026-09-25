@@ -12,6 +12,7 @@ file, but something has to *write* one.
 | `auditreport.py` | patch 37 (`-audit`) | Turns the binary access-audit map into a readable coverage report |
 | `decb.py` | n/a | Creates and manipulates RS-DOS (Disk BASIC) disk images |
 | `dragondos/` | n/a | DragonDOS counterpart to `decb.py`: create/format/list/populate DragonDOS disk images (build: `dragondos/fetch.sh` → `bin/dragondos`) |
+| `vdk2dsk/` | n/a | VDK → DSK/JVC converter, vendored single-file C (build: `vdk2dsk/build.sh` → `bin/vdk2dsk`); `-h` for headerless (OS-9 images → name `.os9`), 5-byte JVC header otherwise |
 | `gen_mnemonics.py` | `gensym.py` | Regenerates gensym's instruction/directive sets from the vendored `lwasm`'s own table |
 
 ## Configuring them for your project
